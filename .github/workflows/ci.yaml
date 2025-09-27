@@ -1,29 +1,47 @@
 name: Continuous Integration
+
 on: push
+
 env:
- DB_NAME: test
- DB_USER: root
- DB_PASSWORD: root
+  DB_NAME: test
+  DB_USER: root
+  DB_PASSWORD: root
+
 jobs:
   run_code_checks:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Set up Go
-      - uses: actions/checkout@v2
-        run: |
-        sudo /ect/init.d/mysql start
-        sudo mysql -e "ALTER USER "${{env.DB_USER } }"@"localhost" IDENTIFIED  BY "${{ env.DB_PASSWORD }}";" -uroot -proot
-        sudo mysql -e "CREATE DATABASE ${{ env.DB_NAME }};" -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }}
-      - name: Checkout Repo Code  
-        uses: actions/checkout@v2
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
       - name: Set up Go 1.20
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.20
-      - name: Run linting
+          go-version: "1.20"
+
+      - name: Start MySQL and prepare database
+        shell: bash
+        run: |
+          # Ensure MySQL is running (GitHub runners usually have it preinstalled)
+          sudo systemctl start mysql || sudo /etc/init.d/mysql start
+
+          # Configure root to use password auth and set the password
+          sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${{ env.DB_PASSWORD }}'; FLUSH PRIVILEGES;"
+
+          # Create DB (idempotent)
+          mysql -u"${{ env.DB_USER }}" -p"${{ env.DB_PASSWORD }}" -e "CREATE DATABASE IF NOT EXISTS \`${{ env.DB_NAME }}\`;"
+
+      - name: Run formatting and vet
         run: |
           go fmt ./...
           go vet ./...
+
       - name: Run tests
+        env:
+          # If your code reads DB settings from env, expose them here
+          DB_NAME: ${{ env.DB_NAME }}
+          DB_USER: ${{ env.DB_USER }}
+          DB_PASSWORD: ${{ env.DB_PASSWORD }}
         run: |
-          go test -v ./...   
+          go test -v ./...
