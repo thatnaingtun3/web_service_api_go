@@ -11,27 +11,17 @@ jobs:
       - name: Checkout Repo Code
         uses: actions/checkout@v4
       
-      - name: Set up Go 1.22
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: "1.22"
       
-      - name: Start MySQL and setup database
+      - name: Setup MySQL
         run: |
-          # Start MySQL service
           sudo systemctl start mysql
-          
-          # Wait for MySQL to be ready
-          sleep 5
-          
-          # Set password for root user
-          sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '${{ env.DB_PASSWORD }}';" -u root
-          
-          # Create database
-          mysql -e "CREATE DATABASE IF NOT EXISTS ${{ env.DB_NAME }};" -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }}
-          
-          # Verify setup
-          mysql -e "SHOW DATABASES;" -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }}
+          sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${{ env.DB_PASSWORD }}';"
+          sudo mysql -e "FLUSH PRIVILEGES;"
+          mysql -u root -p${{ env.DB_PASSWORD }} -e "CREATE DATABASE IF NOT EXISTS ${{ env.DB_NAME }};"
       
       - name: Run linting
         run: |
@@ -43,5 +33,4 @@ jobs:
           DB_NAME: ${{ env.DB_NAME }}
           DB_USER: ${{ env.DB_USER }}
           DB_PASSWORD: ${{ env.DB_PASSWORD }}
-        run: |
-          go test -v ./...
+        run: go test -v ./...
