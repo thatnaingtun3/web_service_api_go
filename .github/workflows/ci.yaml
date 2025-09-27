@@ -10,27 +10,31 @@ env:
 jobs:
   run_code_checks:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up Go 1.20
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: "1.20"
 
       - name: Start MySQL and prepare database
-        shell: bash
         run: |
-          # Ensure MySQL is running (GitHub runners usually have it preinstalled)
+          # Start MySQL
           sudo systemctl start mysql || sudo /etc/init.d/mysql start
 
-          # Configure root to use password auth and set the password
-          sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${{ env.DB_PASSWORD }}'; FLUSH PRIVILEGES;"
+          # Reset root password and authentication method
+          sudo mysql --defaults-file=/etc/mysql/debian.cnf -e "
+            ALTER USER 'root'@'localhost'
+            IDENTIFIED WITH mysql_native_password BY '${{ env.DB_PASSWORD }}';
+            FLUSH PRIVILEGES;"
 
-          # Create DB (idempotent)
-          mysql -u"${{ env.DB_USER }}" -p"${{ env.DB_PASSWORD }}" -e "CREATE DATABASE IF NOT EXISTS \`${{ env.DB_NAME }}\`;"
+          # Verify login
+          mysql -uroot -p"${{ env.DB_PASSWORD }}" -e "SELECT VERSION();"
+
+          # Create DB
+          mysql -uroot -p"${{ env.DB_PASSWORD }}" -e "CREATE DATABASE IF NOT EXISTS \`${{ env.DB_NAME }}\`;"
 
       - name: Run formatting and vet
         run: |
@@ -39,9 +43,7 @@ jobs:
 
       - name: Run tests
         env:
-          # If your code reads DB settings from env, expose them here
           DB_NAME: ${{ env.DB_NAME }}
           DB_USER: ${{ env.DB_USER }}
           DB_PASSWORD: ${{ env.DB_PASSWORD }}
-        run: |
-          go test -v ./...
+        run: go test -v ./...
