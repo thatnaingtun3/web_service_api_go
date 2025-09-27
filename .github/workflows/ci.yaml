@@ -1,36 +1,43 @@
-name: Continuous Integration
-on: push
-env:
-  DB_NAME: test
-  DB_USER: root
-  DB_PASSWORD: ThetPassword@123
+name: action
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
 jobs:
-  run_code_checks:
+  build:
     runs-on: ubuntu-latest
+
+    env:
+      DB_DATABASE: go_mysql_suite_test
+      DB_USER: root
+      DB_PASSWORD: root
+    
     steps:
-      - name: Checkout Repo Code
-        uses: actions/checkout@v4
+      - name: "Mysql Setup"
+        run : |
+          sudo /etc/init.d/mysql start
+          mysql -e 'CREATE DATABASE ${{ env.DB_DATABASE }};' -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }}
+
+      - name: "Checkout Code"
+        uses: actions/checkout@v2
       
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - name: "Setup Go"
+        uses: actions/setup-go@v2
         with:
-          go-version: "1.22"
+          go-version: 1.16
       
-      - name: Setup MySQL
-        run: |
-          sudo systemctl start mysql
-          sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${{ env.DB_PASSWORD }}';"
-          sudo mysql -e "FLUSH PRIVILEGES;"
-          mysql -u root -p${{ env.DB_PASSWORD }} -e "CREATE DATABASE IF NOT EXISTS ${{ env.DB_NAME }};"
+      - name: "Test"
+        run: go test -v ./tests
+
+      - name: "Build"
+        run: go build -o ./bin/myapp server.go
+
+      - name: "Artifact"
+        uses: actions/upload-artifact@v2
+        with:
+          name: myapp
+          path: bin/myapp
       
-      - name: Run linting
-        run: |
-          go fmt ./...
-          go vet ./...
-      
-      - name: Run tests
-        env:
-          DB_NAME: ${{ env.DB_NAME }}
-          DB_USER: ${{ env.DB_USER }}
-          DB_PASSWORD: ${{ env.DB_PASSWORD }}
-        run: go test -v ./...
