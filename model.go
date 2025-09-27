@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 )
 
@@ -40,4 +41,42 @@ func (p *Product) getProduct(db *sql.DB) error {
 	}
 
 	return nil
+}
+
+func (p *Product) createProduct(db *sql.DB) error {
+	query := fmt.Sprintf("insert into products(name,quantity,price) values('%v','%v','%v')", p.Name, p.Quantity, p.Price)
+	result, err := db.Exec(query)
+	if err != nil {
+
+		return err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+
+		return err
+	}
+	p.ID = int(id)
+	return nil
+
+}
+
+func (p *Product) updateProduct(db *sql.DB) error {
+
+	query := fmt.Sprintf("update products set name='%v',quantity=%v,price=%v where id=%v", p.Name, p.Quantity, p.Price, p.ID)
+
+	retsult, err := db.Exec(query)
+	// log.Println(retsult.RowsAffected())
+	rowsAffected, err := retsult.RowsAffected()
+	if rowsAffected == 0 {
+		return errors.New("No such  row result")
+	}
+
+	return err
+}
+
+func (p *Product) deleteProduct(db *sql.DB) error {
+
+	query := fmt.Sprintf("delete from products where id=%v", p.ID)
+	_, err := db.Exec(query)
+	return err
 }
