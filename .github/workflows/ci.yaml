@@ -1,32 +1,47 @@
 name: action
-
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
-
+    branches: [master]
 jobs:
   build:
     runs-on: ubuntu-latest
-
     env:
       DB_DATABASE: go_mysql_suite_test
       DB_USER: root
       DB_PASSWORD: root
-    
     steps:
-      - name: "Mysql Setup"
-        run : |
-          sudo /etc/init.d/mysql start
-          mysql -e 'CREATE DATABASE ${{ env.DB_DATABASE }};' -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }}
       - name: "Checkout Code"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       
       - name: "Setup Go"
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.23
-      - name: Run tests
+          go-version: "1.23"
+      
+      - name: "MySQL Setup"
         run: |
-          go test -v ./...   
+          # Start MySQL service
+          sudo systemctl start mysql
+          
+          # Set root password and authentication method
+          sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${{ env.DB_PASSWORD }}';"
+          sudo mysql -e "FLUSH PRIVILEGES;"
+          
+          # Test the connection works
+          mysql -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }} -e "SELECT VERSION();"
+          
+          # Create the database
+          mysql -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }} -e "CREATE DATABASE IF NOT EXISTS ${{ env.DB_DATABASE }};"
+          
+          # Verify database was created
+          mysql -u${{ env.DB_USER }} -p${{ env.DB_PASSWORD }} -e "SHOW DATABASES;"
+      
+      - name: "Run tests"
+        env:
+          DB_DATABASE: ${{ env.DB_DATABASE }}
+          DB_USER: ${{ env.DB_USER }}
+          DB_PASSWORD: ${{ env.DB_PASSWORD }}
+        run: |
+          go test -v ./...
