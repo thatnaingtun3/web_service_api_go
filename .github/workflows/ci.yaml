@@ -4,33 +4,38 @@ env:
   DB_NAME: test
   DB_USER: root
   DB_PASSWORD: root
+  DB_HOST: 127.0.0.1
+  DB_PORT: 3306
 jobs:
   run_code_checks:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: test
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"  # Changed from "1.20" to match your go.mod
+          go-version: "1.22"
       - name: Fix go.mod version format
         run: |
           # Fix the go version in go.mod to use correct format
           sed -i 's/go 1\.22\.2/go 1.22/' go.mod
-      - name: Start MySQL and prepare database
+      - name: Wait for MySQL to be ready
         run: |
-          # Start MySQL
-          sudo systemctl start mysql || sudo /etc/init.d/mysql start
-          # Reset root password and authentication method
-          sudo mysql --defaults-file=/etc/mysql/debian.cnf -e "
-            ALTER USER 'root'@'localhost'
-            IDENTIFIED WITH mysql_native_password BY '${{ env.DB_PASSWORD }}';
-            FLUSH PRIVILEGES;"
-          # Verify login
-          mysql -uroot -p"${{ env.DB_PASSWORD }}" -e "SELECT VERSION();"
-          # Create DB
-          mysql -uroot -p"${{ env.DB_PASSWORD }}" -e "CREATE DATABASE IF NOT EXISTS \`${{ env.DB_NAME }}\`;"
+          # Wait for MySQL service to be fully ready
+          sleep 10
+          # Test connection
+          mysql -h 127.0.0.1 -P 3306 -u root -proot -e "SELECT VERSION();"
+          mysql -h 127.0.0.1 -P 3306 -u root -proot -e "SHOW DATABASES;"
       - name: Run formatting and vet
         run: |
           go fmt ./...
@@ -40,4 +45,6 @@ jobs:
           DB_NAME: ${{ env.DB_NAME }}
           DB_USER: ${{ env.DB_USER }}
           DB_PASSWORD: ${{ env.DB_PASSWORD }}
+          DB_HOST: ${{ env.DB_HOST }}
+          DB_PORT: ${{ env.DB_PORT }}
         run: go test -v ./...
