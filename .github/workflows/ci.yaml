@@ -1,46 +1,40 @@
 name: Continuous Integration
-
 on: push
-
 env:
   DB_NAME: test
   DB_USER: root
   DB_PASSWORD: root
-
 jobs:
   run_code_checks:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.20"
-
+          go-version: "1.22"  # Changed from "1.20" to match your go.mod
+      - name: Fix go.mod version format
+        run: |
+          # Fix the go version in go.mod to use correct format
+          sed -i 's/go 1\.22\.2/go 1.22/' go.mod
       - name: Start MySQL and prepare database
         run: |
           # Start MySQL
           sudo systemctl start mysql || sudo /etc/init.d/mysql start
-
           # Reset root password and authentication method
           sudo mysql --defaults-file=/etc/mysql/debian.cnf -e "
             ALTER USER 'root'@'localhost'
             IDENTIFIED WITH mysql_native_password BY '${{ env.DB_PASSWORD }}';
             FLUSH PRIVILEGES;"
-
           # Verify login
           mysql -uroot -p"${{ env.DB_PASSWORD }}" -e "SELECT VERSION();"
-
           # Create DB
           mysql -uroot -p"${{ env.DB_PASSWORD }}" -e "CREATE DATABASE IF NOT EXISTS \`${{ env.DB_NAME }}\`;"
-
       - name: Run formatting and vet
         run: |
           go fmt ./...
           go vet ./...
-
       - name: Run tests
         env:
           DB_NAME: ${{ env.DB_NAME }}
